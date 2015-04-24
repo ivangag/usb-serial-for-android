@@ -1,3 +1,7 @@
+## Notes
+* For STM32F2x was necessary to modify send routine in order to write bytes o serial one by one.
+* Trying to send more than 8 bytes for each bulk transfer will fail with the STM32Fx (this is my personal experience by using CDC firmware provided by ST)
+
 # usb-serial-for-android
 
 This is a driver library for communication with Arduinos and other USB serial hardware on
