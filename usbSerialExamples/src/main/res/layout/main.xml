@@ -4,14 +4,29 @@
     android:layout_height="match_parent" >
 
     <TextView
+        android:id="@+id/infoStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:text="false"
+        android:padding="8dp"
+        android:textSize="18sp" />
+
+    <TextView
         android:id="@+id/demoTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
+        android:layout_toLeftOf="@+id/infoStatus"
+        android:layout_toStartOf="@+id/infoStatus"
+        android:gravity="center"
         android:text="@string/app_title"
         android:textSize="24sp"
         android:textStyle="bold" />
+
 
     <TextView
         android:id="@+id/progressBarTitle"

@@ -17,4 +17,7 @@
     
     <!-- 0x067B / 0x2303: Prolific PL2303 -->
     <usb-device vendor-id="1659" product-id="8963" />
+
+    <!-- 0x0483 / 0x5740: ARM-Cortex M3 STM32F25 -->
+    <usb-device vendor-id="1155" product-id="22336" />
 </resources>

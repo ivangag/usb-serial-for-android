@@ -36,11 +36,11 @@ import java.nio.ByteBuffer;
  * @author mike wakerly (opensource@hoho.com)
  */
 public class SerialInputOutputManager implements Runnable {
-
+    private static boolean IsFirstTime = true;
     private static final String TAG = SerialInputOutputManager.class.getSimpleName();
     private static final boolean DEBUG = true;
 
-    private static final int READ_WAIT_MILLIS = 200;
+    private static final int READ_WAIT_MILLIS = 5000;
     private static final int BUFSIZ = 4096;
 
     private final UsbSerialPort mDriver;
@@ -138,7 +138,11 @@ public class SerialInputOutputManager implements Runnable {
                     Log.i(TAG, "Stopping mState=" + getState());
                     break;
                 }
-                step();
+                //step();
+                sniffForIncomingData();
+                Thread.sleep(50);
+                //writeToDevice(("help\r\n").getBytes());
+                //Thread.sleep(3000);
             }
         } catch (Exception e) {
             Log.w(TAG, "Run ending due to exception: " + e.getMessage(), e);
@@ -151,6 +155,38 @@ public class SerialInputOutputManager implements Runnable {
                 mState = State.STOPPED;
                 Log.i(TAG, "Stopped.");
             }
+        }
+    }
+
+
+    public void writeToDevice(byte[] outBuff) throws IOException{
+        synchronized (mWriteBuffer) {
+            for (int byteCount = 0; byteCount < outBuff.length; byteCount++)
+            {
+                mDriver.write(new byte[]{outBuff[byteCount]}, READ_WAIT_MILLIS);
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            Log.d(TAG, "Writing data len=" + outBuff.length);
+            //mDriver.write(outBuff, READ_WAIT_MILLIS);
+        }
+    }
+
+    private void sniffForIncomingData() throws IOException{
+        // Handle incoming data.
+        int len = mDriver.read(mReadBuffer.array(), READ_WAIT_MILLIS);
+        if (len > 0) {
+            Log.d(TAG, "Read data len=" + len);
+            final Listener listener = getListener();
+            if (listener != null) {
+                final byte[] data = new byte[len];
+                mReadBuffer.get(data, 0, len);
+                listener.onNewData(data);
+            }
+            mReadBuffer.clear();
         }
     }
 
@@ -186,5 +222,4 @@ public class SerialInputOutputManager implements Runnable {
             mDriver.write(outBuff, READ_WAIT_MILLIS);
         }
     }
-
 }

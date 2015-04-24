@@ -28,6 +28,13 @@ import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -49,6 +56,10 @@ public class SerialConsoleActivity extends Activity {
 
     private final String TAG = SerialConsoleActivity.class.getSimpleName();
 
+
+    private Button mBtnSend;
+    private Button mBtnClear;
+
     /**
      * Driver instance, passed in statically via
      * {@link #show(Context, UsbSerialPort)}.
@@ -63,7 +74,9 @@ public class SerialConsoleActivity extends Activity {
 
     private TextView mTitleTextView;
     private TextView mDumpTextView;
-    private ScrollView mScrollView;
+    private EditText mInputTextView;
+    private ScrollView mScrollViewReceiver;
+    private ScrollView mScrollViewSender;
 
     private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
 
@@ -73,8 +86,14 @@ public class SerialConsoleActivity extends Activity {
             new SerialInputOutputManager.Listener() {
 
         @Override
-        public void onRunError(Exception e) {
+        public void onRunError(final Exception e) {
             Log.d(TAG, "Runner stopped.");
+            mDumpTextView.post(new Runnable() {
+                @Override
+                public void run() {
+                    mDumpTextView.append("Runner stopped: " + e.getLocalizedMessage());
+                }
+            });
         }
 
         @Override
@@ -93,8 +112,62 @@ public class SerialConsoleActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.serial_console);
         mTitleTextView = (TextView) findViewById(R.id.demoTitle);
-        mDumpTextView = (TextView) findViewById(R.id.consoleText);
-        mScrollView = (ScrollView) findViewById(R.id.demoScroller);
+        mDumpTextView = (TextView) findViewById(R.id.receiverText);
+        mInputTextView = (EditText) findViewById(R.id.senderText);
+        mScrollViewReceiver = (ScrollView) findViewById(R.id.demoReceiverScroller);
+        mScrollViewSender = (ScrollView) findViewById(R.id.demoSenderScroller);
+        mBtnSend = (Button) findViewById(R.id.btnSend);
+        mBtnClear = (Button) findViewById(R.id.btnClear);
+
+        mInputTextView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (hasFocus) {
+                    getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0);
+                }else {
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(v.getWindowToken(),0);
+                }
+            }
+        });
+
+        mInputTextView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                boolean handled = false;
+                if (actionId == EditorInfo.IME_ACTION_SEND) {
+                    if (SerialConsoleActivity.this.sendData(mInputTextView.getText().toString(), true)) {
+                        mInputTextView.setText("");
+                    } else {
+                        mInputTextView.setText("!error on sending data!");
+                    }
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(v.getWindowToken(),0);
+                    handled = true;
+                }
+                return handled;
+            }
+        });
+        mBtnSend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (SerialConsoleActivity.this.sendData(mInputTextView.getText().toString(), true)) {
+                    mInputTextView.setText("");
+                } else {
+                    mInputTextView.setText("!error on sending data!");
+                }
+            }
+        });
+        mBtnClear.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mDumpTextView.setText("");
+            }
+        });
+        //InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        //imm.showSoftInput(mInputTextView, InputMethodManager.SHOW_IMPLICIT);
     }
 
     @Override
@@ -129,7 +202,9 @@ public class SerialConsoleActivity extends Activity {
 
             try {
                 sPort.open(connection);
-                sPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+                sPort.setParameters(115200, UsbSerialPort.DATABITS_8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+                sPort.setDTR(true);
+                sPort.setRTS(true);
             } catch (IOException e) {
                 Log.e(TAG, "Error setting up device: " + e.getMessage(), e);
                 mTitleTextView.setText("Error opening device: " + e.getMessage());
@@ -158,6 +233,11 @@ public class SerialConsoleActivity extends Activity {
         if (sPort != null) {
             Log.i(TAG, "Starting io manager ..");
             mSerialIoManager = new SerialInputOutputManager(sPort, mListener);
+/*            try {
+                mSerialIoManager.writeToDevice(("help\n").getBytes());
+            } catch (IOException e) {
+                mSerialIoManager.getListener().onRunError(e);
+            }*/
             mExecutor.submit(mSerialIoManager);
         }
     }
@@ -170,20 +250,40 @@ public class SerialConsoleActivity extends Activity {
     private void updateReceivedData(byte[] data) {
         final String message = "Read " + data.length + " bytes: \n"
                 + HexDump.dumpHexString(data) + "\n\n";
-        mDumpTextView.append(message);
-        mScrollView.smoothScrollTo(0, mDumpTextView.getBottom());
+        mDumpTextView.append(new String(data));
+        mScrollViewReceiver.smoothScrollTo(0, mDumpTextView.getBottom());
+    }
+
+    private boolean sendData(String inputText, boolean addNewLine) {
+
+        boolean res = true;
+        if (inputText.length() > 0) {
+            inputText = addNewLine ? inputText + "\r\n" : inputText;
+        } else {
+            inputText = "\r\n";
+        }
+        byte data[] = inputText.getBytes();
+        try {
+            mSerialIoManager.writeToDevice(data);
+            //mInputTextView.setText("");
+        } catch (IOException e) {
+            //mInputTextView.setText(e.toString());
+            res = false;
+        }
+        mScrollViewSender.smoothScrollTo(0, mInputTextView.getBottom());
+
+        return res;
     }
 
     /**
      * Starts the activity, using the supplied driver instance.
      *
      * @param context
-     * @param driver
      */
     static void show(Context context, UsbSerialPort port) {
         sPort = port;
         final Intent intent = new Intent(context, SerialConsoleActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_HISTORY);
+        //intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_HISTORY);
         context.startActivity(intent);
     }
 

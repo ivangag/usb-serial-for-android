@@ -23,7 +23,10 @@ package com.hoho.android.usbserial.examples;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.hardware.usb.UsbConstants;
 import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -47,6 +50,8 @@ import com.hoho.android.usbserial.driver.UsbSerialProber;
 import com.hoho.android.usbserial.util.HexDump;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -61,12 +66,16 @@ public class DeviceListActivity extends Activity {
     private UsbManager mUsbManager;
     private ListView mListView;
     private TextView mProgressBarTitle;
+    private TextView mInfoStatus;
     private ProgressBar mProgressBar;
 
     private static final int MESSAGE_REFRESH = 101;
     private static final long REFRESH_TIMEOUT_MILLIS = 5000;
 
+
     private final Handler mHandler = new Handler() {
+
+        //private final WeakReference<DeviceListActivity> mActivity = null;
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -82,20 +91,25 @@ public class DeviceListActivity extends Activity {
 
     };
 
+    //private List<UsbDevice> mEntries = new ArrayList<UsbDevice>();
     private List<UsbSerialPort> mEntries = new ArrayList<UsbSerialPort>();
+    //private ArrayAdapter<UsbDevice> mAdapter;
     private ArrayAdapter<UsbSerialPort> mAdapter;
-
+    final int DEVICE_INTERFACE_USB = 1;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
+
         mUsbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         mListView = (ListView) findViewById(R.id.deviceList);
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
         mProgressBarTitle = (TextView) findViewById(R.id.progressBarTitle);
+        mInfoStatus = (TextView) findViewById(R.id.infoStatus);
 
         mAdapter = new ArrayAdapter<UsbSerialPort>(this,
+        //mAdapter = new ArrayAdapter<UsbDevice>(this,
                 android.R.layout.simple_expandable_list_item_2, mEntries) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
@@ -108,6 +122,8 @@ public class DeviceListActivity extends Activity {
                     row = (TwoLineListItem) convertView;
                 }
 
+                //final UsbDevice device = mEntries.get(position);
+                //UsbSerialDriver driver = UsbSerialProber.getDefaultProber().probeDevice(device);
                 final UsbSerialPort port = mEntries.get(position);
                 final UsbSerialDriver driver = port.getDriver();
                 final UsbDevice device = driver.getDevice();
@@ -117,7 +133,9 @@ public class DeviceListActivity extends Activity {
                         HexDump.toHexString((short) device.getProductId()));
                 row.getText1().setText(title);
 
+
                 final String subtitle = driver.getClass().getSimpleName();
+
                 row.getText2().setText(subtitle);
 
                 return row;
@@ -141,20 +159,54 @@ public class DeviceListActivity extends Activity {
         });
     }
 
+    static boolean isLaunched = false;
+    static boolean isThroughNewIntent = false;
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        isLaunched = true;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        mInfoStatus.setText(isThroughNewIntent ? "TRUE" : "FALSE");
         mHandler.sendEmptyMessage(MESSAGE_REFRESH);
+        App.activityResumed();
+        isThroughNewIntent = false;
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        App.activityPaused();
         mHandler.removeMessages(MESSAGE_REFRESH);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        isLaunched = false;
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        isThroughNewIntent = true;
+        if (isLaunched) {
+            //todo
+            //finish();
+        }
+        else
+        {
+            //something here
+        }
     }
 
     private void refreshDeviceList() {
         showProgressBar();
+
 
         new AsyncTask<Void, Void, List<UsbSerialPort>>() {
             @Override
@@ -169,7 +221,7 @@ public class DeviceListActivity extends Activity {
                 for (final UsbSerialDriver driver : drivers) {
                     final List<UsbSerialPort> ports = driver.getPorts();
                     Log.d(TAG, String.format("+ %s: %s port%s",
-                            driver, Integer.valueOf(ports.size()), ports.size() == 1 ? "" : "s"));
+                            driver, ports.size(), ports.size() == 1 ? "" : "s"));
                     result.addAll(ports);
                 }
 
@@ -182,12 +234,13 @@ public class DeviceListActivity extends Activity {
                 mEntries.addAll(result);
                 mAdapter.notifyDataSetChanged();
                 mProgressBarTitle.setText(
-                        String.format("%s device(s) found",Integer.valueOf(mEntries.size())));
+                        String.format("%s device(s) found", mEntries.size()));
                 hideProgressBar();
                 Log.d(TAG, "Done refreshing, " + mEntries.size() + " entries found.");
             }
 
         }.execute((Void) null);
+
     }
 
     private void showProgressBar() {

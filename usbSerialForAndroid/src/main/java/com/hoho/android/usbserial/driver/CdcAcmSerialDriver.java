@@ -159,7 +159,8 @@ public class CdcAcmSerialDriver implements UsbSerialDriver {
 
         @Override
         public int read(byte[] dest, int timeoutMillis) throws IOException {
-            if (mEnableAsyncReads) {
+            //if (mEnableAsyncReads) {
+            if (false) {
               final UsbRequest request = new UsbRequest();
               try {
                 request.initialize(mConnection, mReadEndpoint);
@@ -191,6 +192,7 @@ public class CdcAcmSerialDriver implements UsbSerialDriver {
                 numBytesRead = mConnection.bulkTransfer(mReadEndpoint, mReadBuffer, readAmt,
                         timeoutMillis);
                 if (numBytesRead < 0) {
+//                    Log.d(TAG, "read()=> Timeout on Reading");
                     // This sucks: we get -1 on timeout, not 0 as preferred.
                     // We *should* use UsbRequest, except it has a bug/api oversight
                     // where there is no way to determine the number of bytes read
@@ -200,6 +202,8 @@ public class CdcAcmSerialDriver implements UsbSerialDriver {
                         return -1;
                     }
                     return 0;
+                }else {
+                    Log.d(TAG, String.format("read()=> BytesRead:%d",numBytesRead));
                 }
                 System.arraycopy(mReadBuffer, 0, dest, 0, numBytesRead);
             }
@@ -323,7 +327,7 @@ public class CdcAcmSerialDriver implements UsbSerialDriver {
 
     public static Map<Integer, int[]> getSupportedDevices() {
         final Map<Integer, int[]> supportedDevices = new LinkedHashMap<Integer, int[]>();
-        supportedDevices.put(Integer.valueOf(UsbId.VENDOR_ARDUINO),
+        supportedDevices.put(UsbId.VENDOR_ARDUINO,
                 new int[] {
                         UsbId.ARDUINO_UNO,
                         UsbId.ARDUINO_UNO_R3,
@@ -335,17 +339,21 @@ public class CdcAcmSerialDriver implements UsbSerialDriver {
                         UsbId.ARDUINO_MEGA_ADK_R3,
                         UsbId.ARDUINO_LEONARDO,
                 });
-        supportedDevices.put(Integer.valueOf(UsbId.VENDOR_VAN_OOIJEN_TECH),
+        supportedDevices.put(UsbId.VENDOR_VAN_OOIJEN_TECH,
                 new int[] {
                     UsbId.VAN_OOIJEN_TECH_TEENSYDUINO_SERIAL,
                 });
-        supportedDevices.put(Integer.valueOf(UsbId.VENDOR_ATMEL),
+        supportedDevices.put(UsbId.VENDOR_ATMEL,
                 new int[] {
                     UsbId.ATMEL_LUFA_CDC_DEMO_APP,
                 });
-        supportedDevices.put(Integer.valueOf(UsbId.VENDOR_LEAFLABS),
+        supportedDevices.put(UsbId.VENDOR_LEAFLABS,
                 new int[] {
                     UsbId.LEAFLABS_MAPLE,
+                });
+        supportedDevices.put(UsbId.VENDOR_STM,
+                new int[] {
+                        UsbId.STM32F2_ARM_CORTEX_M3,
                 });
         return supportedDevices;
     }
