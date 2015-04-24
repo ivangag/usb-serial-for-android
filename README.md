@@ -1,5 +1,5 @@
 ## Notes
-* For STM32F2x was necessary to modify send routine in order to write bytes o serial one by one.
+* For STM32F2x it was necessary to modify the sending routine in order to write the bytes to endpoint one by one.
 * Trying to send more than 8 bytes for each bulk transfer will fail with the STM32Fx (this is my personal experience by using CDC firmware provided by ST)
 
 # usb-serial-for-android
